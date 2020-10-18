@@ -1,0 +1,21 @@
+#!/bin/bash
+
+unset XDG_RUNTIME_DIR
+ip=$(/sbin/ip route get 8.8.8.8 | awk '{print $NF;exit}')
+port=$((10000+ $RANDOM % 20000))
+
+echo Use the following ssh command in your laptop shell to tunnel the notebook server:
+
+if [ -z "$1" ]
+then
+toport=8880
+else
+toport=$1
+fi
+
+CMD="ssh -N -L $toport:$ip:$port $USER@$HOSTNAME"
+echo "$CMD"
+echo "$CMD" > $HOME/utils/jupyter_connect_cmd
+
+#upyter-lab --no-browser --ip=$ip --port=$port --log-level='ERROR'
+jupyter-notebook --no-browser --ip=$ip --port=$port --log-level='ERROR'
