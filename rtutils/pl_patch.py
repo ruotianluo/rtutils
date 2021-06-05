@@ -36,6 +36,9 @@ def _get_distributed_sampler(self, dataloader, shuffle, mode):
 
 
 def patch_pl_trainer_with_deterministic_sampler(trainer):
+    assert trainer.accelerator_connector.is_distributed, 'Your trainer is not distributed. Cannot replace.'
+    assert trainer.accelerator_connector.replace_sampler_ddp, 'Make sure you set replace_sampler_ddp to be True'
+    # TODO, we also need to make sure the dataloader is not set some DistributedSampler, otherwise the replace_sampler will not be called either.
     trainer._get_distributed_sampler = types.MethodType(_get_distributed_sampler, trainer)
 
 
