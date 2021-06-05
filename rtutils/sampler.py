@@ -137,22 +137,29 @@ class InfiniteDistributedSampler(DistributedSampler):
                 manually drain the iterator. This can make dataloader
                 properly resumed.
         """
-        self.global_batch_size = kwargs.get('global_batch_size', -1)
-        if 'global_batch_size' in kwargs:
-            del kwargs['global_batch_size']
-        self.deterministic = kwargs.get('deterministic', False)
-        if 'deterministic' in kwargs:
-            del kwargs['deterministic']
+        self.global_batch_size = kwargs.pop('global_batch_size', 0)
+        self.batch_size = kwargs.pop('batch_size', 0)
+
+        self.deterministic = kwargs.pop('deterministic', False)
 
         super().__init__(*args, **kwargs)
+
+        # intialize batch_size and global_batch_size.
+        if self.batch_size != 0:
+            assert self.global_batch_size == 0, 'don\'t set both batch_size and global_batch_size'
+            self.global_batch_size = self.batch_size * self.num_replicas
+        elif self.global_batch_size != 0:
+            assert self.batch_size == 0, 'don\'t set both batch_size and global_batch_size'
+            self.batch_size = self.global_batch_size // self.num_replicas
+        else:
+            assert not self.deterministic, 'You have to specify batch_size or global_batch_size if determinstic is True'
 
     # Modified from https://github.com/facebookresearch/detectron2/blob/master/detectron2/data/samplers/distributed_sampler.py#L12
     def __iter__(self):
         start = self.rank
         if self.deterministic:
-            assert self.global_batch_size != -1
             for _i, idx in enumerate(itertools.islice(self._infinite_indices(), start, None, self.num_replicas)):
-                if _i >= self.epoch * self.global_batch_size // self.num_replicas:  # Make sure the epoch is actually iteration
+                if _i >= self.epoch * self.batch_size:  # Make sure the epoch is actually iteration
                     yield idx
         else:
             yield from itertools.islice(self._infinite_indices(), start, None, self.num_replicas)
@@ -174,7 +181,7 @@ class InfiniteDistributedSampler(DistributedSampler):
             indices += indices[:(self.total_size - len(indices))]
             assert len(indices) == self.total_size
 
-            if self.global_batch_size != -1:
+            if self.global_batch_size != 0:
                 # do what drop_last do, make it devisible by global_batch_size
                 indices = indices[:self.total_size // self.global_batch_size * self.global_batch_size]
 
