@@ -106,7 +106,6 @@ def test1():
         if i == 3:
             print('Save the state_dict after the third iteration')
             state_dict = train_loader.state_dict()
-            import pudb;pu.db
         if i == 20:
             print('End up here')
             break

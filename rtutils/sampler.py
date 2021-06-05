@@ -2,6 +2,7 @@ import torch
 from torch.utils.data.distributed import DistributedSampler
 import math
 import warnings
+import itertools
 
 
 class DeterministicDistributedSampler(DistributedSampler):
