@@ -3,6 +3,18 @@ import os
 from rtutils.sampler import DeterministicDistributedSampler
 
 import pytorch_lightning as pl
+if 'rt' in pl.__author__:
+    RTPL = True
+else:
+    RTPL = False
+
+def assert_RTPL():
+    assert RTPL, 'You are not using rt\'s modified pytorch_lightning.\n' \
+        'Install pytorch lightning from https://github.com/ruotianluo/pytorch-lightning;\n' \
+        'for example, pip install git+https://github.com/ruotianluo/pytorch-lightning or \n' \
+        'pip install git+https://github.com/ruotianluo/pytorch-lightning@{tag}'
+
+assert_RTPL()
 
 # https://github.com/PyTorchLightning/pytorch-lightning/blob/HEAD/pytorch_lightning/trainer/data_loading.py?q=replace_ddp_sampler#L217
 # use my distributed sampler!
