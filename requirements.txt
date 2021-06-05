@@ -2,5 +2,4 @@ oauth2client
 PyDrive
 torch==1.8.1
 mmcv
-pylab
 

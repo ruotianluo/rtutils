@@ -1,4 +1,3 @@
-import pylab
 import os
 import mmcv
 # from .drive import *
@@ -6,7 +5,7 @@ import mmcv
 from .DataLoader import *
 
 def save_current_fig(fn):
-
+    import pylab
     save_path = os.path.join('/home-nfs/rluo/rluo/figures', fn)
     fig = pylab.gcf()
     if not os.path.exists(os.path.dirname(save_path)):
