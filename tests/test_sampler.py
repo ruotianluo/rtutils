@@ -1,4 +1,4 @@
-from rtutils.sampler import DeterministicDistributedSampler
+from rtutils.sampler import DeterministicDistributedSampler, InfiniteDistributedSampler
 from torch.utils.data import DataLoader
 import pytest
 
@@ -46,3 +46,35 @@ def test_deterministic_sampler(seed, global_batch_size, batch_size, num_replicas
                 print(cnt)
         for x,y in zip(tmp[resume_from:], tmp1):
             assert x == y
+
+
+def test_inifinte():
+    dataset = list(range(100))
+    x = InfiniteDistributedSampler(dataset, 4, 0, shuffle=False)
+    dl = DataLoader(dataset, batch_size=22, sampler=x, collate_fn=lambda x: x)
+    for x in dl:
+        print(x)
+        break
+
+
+@pytest.mark.parametrize("global_batch_size, batch_size", 
+    [[0, 4], [16, 0]]
+)
+def test_inifinte_deterministic(global_batch_size, batch_size):
+    dataset = list(range(1000))
+    x = InfiniteDistributedSampler(dataset, 4, 0, shuffle=True, deterministic=True, global_batch_size=global_batch_size, batch_size=batch_size)
+    dl = DataLoader(dataset, batch_size=4, sampler=x, collate_fn=lambda x: x)
+
+    tmp = []
+    for x,_ in zip(dl, range(10)):
+        print(x)
+        tmp.append(x)
+
+    print('-'*100)
+    x = InfiniteDistributedSampler(dataset, 4, 0, shuffle=True, deterministic=True, global_batch_size=global_batch_size, batch_size=batch_size)
+    x.set_epoch(2)
+    dl = DataLoader(dataset, batch_size=4, sampler=x, collate_fn=lambda x: x)
+    for x,_ in zip(dl, range(8)):
+        print(x)
+        assert x == tmp[_+2]
+
