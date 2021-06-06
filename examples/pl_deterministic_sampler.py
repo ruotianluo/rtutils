@@ -14,6 +14,14 @@ from pytorch_lightning import LightningModule, Trainer
 
 # This file is modified from https://github.com/PyTorchLightning/pytorch-lightning/blob/master/pl_examples/bug_report_model.py
 
+################################################################
+# To use my deterministic sampler and pytorch lightning integration,
+# there is a few things you need to know.
+# First, you have to use my fork of the pytorch-lightning which includes some changes.
+# there are no breaking changes and should work as the original version in other cases.
+# Second, this sampler assumes fixed batch_size and fixed number of iterations in one epoch.
+################################################################
+
 import rtutils.pl_patch  # CHANGE
 
 class RandomDataset(Dataset):
