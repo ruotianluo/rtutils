@@ -59,13 +59,6 @@ class KeyboardInterruptModelCheckpoint(pl.callbacks.ModelCheckpoint):
     def on_keyboard_interrupt(self, trainer, pl_module):
         # Save model when keyboard interrupt
         filepath = os.path.join(self.dirpath, self.CHECKPOINT_NAME_LAST+'.ckpt')
-        if not trainer.total_batch_idx % trainer.num_training_batches == 0:
-            # end in the middle of a epoch
-            trainer.current_epoch -= 1 # because when saving, it will be increased.
-        else:
-            # if the model is interrupted at the end of an epoch, for example during validation,
-            # the model will be resumed from the beginning of the next epoch.
-            pass
         self._save_model(trainer, filepath=filepath)
 
 
@@ -89,6 +82,9 @@ def patch_checkpoint_connector(trainer):
     def dump_checkpoint(self, weights_only: bool = False) -> dict:
         checkpoint = old_dump_checkpoint(weights_only)
         checkpoint['total_batch_idx'] = self.trainer.total_batch_idx
+        if not self.trainer.total_batch_idx % self.trainer.num_training_batches == 0:
+            # end in the middle of a epoch
+            checkpoint['epoch'] -= 1 # so that when resuming, the current_epoch will be the same as when saving.
         return checkpoint
     trainer.checkpoint_connector.restore_training_state = types.MethodType(restore_training_state, trainer.checkpoint_connector)
     trainer.checkpoint_connector.dump_checkpoint = types.MethodType(dump_checkpoint, trainer.checkpoint_connector)
