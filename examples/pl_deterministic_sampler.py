@@ -23,6 +23,7 @@ from pytorch_lightning import LightningModule, Trainer
 ################################################################
 
 import rtutils.pl_patch  # CHANGE
+import pytorch_lightning as pl  # change
 
 class RandomDataset(Dataset):
 
@@ -76,15 +77,16 @@ def run():
     val_data = DataLoader(RandomDataset(32, 64), batch_size=2)
     test_data = DataLoader(RandomDataset(32, 64), batch_size=2)
 
-    # CHANGE
+    # change
+    # You would have to have some model_checkpoint to save checkpoints. (If you don't save, what to resume right?)
+    # otherwise, nothing to change.
     callbacks = [
-        rtutils.pl_patch.KeyboardInterruptModelCheckpoint(
+        pl.callbacks.ModelCheckpoint(
             dirpath=os.getcwd(),
             save_last=True,
-        ),  # the model checkpoint will save the checkpoint when KeyInterrupt is raised.
-        rtutils.pl_patch.ProgressBarPatch(),  # the progressbar will start from where you stopped
+        ),
     ]
-    # CHANGE end
+    # change
 
     model = BoringModel()
     trainer = Trainer(
@@ -99,7 +101,7 @@ def run():
         max_epochs=2,
         weights_summary=None,
     )
-    rtutils.pl_patch.patch_pl_trainer_with_deterministic_sampler(trainer)  # CHANGE; when replacing sampler, the training sampler will be replaced by my deterministic sampler.
+    rtutils.pl_patch.patch_everything(trainer)  # CHANGE; patch multiple things. If you want to know more. Check out the source code for this function.
     trainer.fit(model, train_dataloader=train_data, val_dataloaders=val_data)
     # trainer.test(model, test_dataloaders=test_data) # change
 
