@@ -72,6 +72,20 @@ def patch_model_checkpoint(trainer):
             callback.on_keyboard_interrupt = types.MethodType(on_keyboard_interrupt, callback)
 
 
+def patch_on_save_checkpoint_every(trainer, checkpoint_every):
+    """
+    Save last checkpoint every {checkpoint_every} iteration.
+    """
+    for callback in trainer.callbacks:
+        if isinstance(callback, pl.callbacks.ModelCheckpoint):
+            old_on_train_batch_end = callback.on_train_batch_end
+            def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx):
+                old_on_train_batch_end(trainer, pl_module, outputs, batch, batch_idx, dataloader_idx)
+                if (trainer.global_step + 1) % checkpoint_every == 0:
+                    KeyboardInterruptModelCheckpoint.on_keyboard_interrupt(self, trainer, pl_module)
+            callback.on_train_batch_end = types.MethodType(on_train_batch_end, callback)
+
+
 def patch_checkpoint_connector(trainer):
     # save and load total_batch_idx
     old_restore_training_state = trainer.checkpoint_connector.restore_training_state
