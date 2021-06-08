@@ -20,6 +20,7 @@ Some requirements:
 - Using ddp training
 - replace_ddp_sampler is True (default to be True); and you are not manually setting any train loader sampler.
 - Fixed batch_size and fixed dataset. (It would also work if batch_size or dataset changes, but it just will not be a "correct" resume.)
+- It won't work with your existing checkpoints because the existing checkpoint doesn't have total_batch_idx saved.
 
 Expected behavior:
 - If you ctrl-C the training, the trainer will save a "last" checkpoint at current iteration (you can try this with in examples/pl_deterministic_sampler.py now); or you can write your own callback that saves checkpoint at middle of an epoch (e.g. every k iterations).
