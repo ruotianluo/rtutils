@@ -28,6 +28,9 @@ def _get_distributed_sampler(self, dataloader, shuffle, mode):
 
 
 def patch_pl_trainer_with_deterministic_sampler(trainer):
+    """
+    When pytorch lightning is replacing distributed sampler, replace with my dterministic sampler.
+    """
     assert trainer.accelerator_connector.is_distributed, 'Your trainer is not distributed. Cannot replace.'
     assert trainer.accelerator_connector.replace_sampler_ddp, 'Make sure you set replace_sampler_ddp to be True'
     # TODO, we also need to make sure the dataloader is not set some DistributedSampler, otherwise the replace_sampler will not be called either.
@@ -43,6 +46,9 @@ class ProgressBarPatch(pl.callbacks.ProgressBar):
 
 
 def patch_progressbar(trainer):
+    """
+    Make progressbar start from middle if resuming from middle-epoch checkpoint.
+    """
     # This on_train_epoch_start will run after progress_bar on_train_epoch_start
     # this manually set the progress bar to the middle according to the total_batch_idx.
     # asssume fix num batches in each epoch.
@@ -63,6 +69,9 @@ class KeyboardInterruptModelCheckpoint(pl.callbacks.ModelCheckpoint):
 
 
 def patch_model_checkpoint(trainer):
+    """
+    Save last checkpoint when key interrupt occurs.
+    """
     for callback in trainer.callbacks:
         if isinstance(callback, pl.callbacks.ModelCheckpoint):
             old_on_keyboard_interrupt = callback.on_keyboard_interrupt
@@ -110,6 +119,10 @@ class SetEpochCallback(pl.callbacks.Callback):
 
 
 def patch_set_epoch(trainer):
+    """
+    Instead of set_epoch according to current_epoch, set_epoch with total_batch_idx.
+    This is intended to work with my determnistic_distributed_sampler.
+    """
     old_on_train_epoch_start = trainer.train_loop.on_train_epoch_start
     def on_train_epoch_start(self, epoch):
         old_on_train_epoch_start(epoch)
@@ -118,6 +131,10 @@ def patch_set_epoch(trainer):
 
 
 def patch_data_connector(trainer):
+    """
+    The the initial_batch_idx from the train_loader enumerator respect middle-epoch resuming.
+    So that the check_val_fx can work properly.
+    """
     # set enumerate initial batch_idx according to the loader size.
     # copy and rewrite the function
     # def get_profiled_train_dataloader(self, train_dataloader):
