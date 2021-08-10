@@ -4,17 +4,17 @@ from rtutils.sampler import DeterministicDistributedSampler
 import warnings
 
 import pytorch_lightning as pl
+from packaging.version import Version
+assert Version(pl.__version__) > Version('1.3.8'), 'v0.3 only work for pytorch-lightning>=1.4.0, either downgrade to v0.2.2 or update pytorch-lightning'
 
 
 def _get_distributed_sampler(self, dataloader, shuffle, mode):
     # modified from https://github.com/PyTorchLightning/pytorch-lightning/blob/HEAD/pytorch_lightning/trainer/data_loading.py?q=replace_ddp_sampler#L217
-    from pytorch_lightning.utilities import _TORCH_GREATER_EQUAL_1_6
     from pytorch_lightning.overrides.distributed import UnrepeatedDistributedSampler
     from pytorch_lightning.trainer.states import RunningStage
     kwargs = self.distributed_sampler_kwargs
     kwargs["shuffle"] = shuffle and not self.overfit_batches
-    if _TORCH_GREATER_EQUAL_1_6:
-        kwargs.setdefault("seed", int(os.getenv("PL_GLOBAL_SEED", 0)))
+    kwargs.setdefault("seed", int(os.getenv("PL_GLOBAL_SEED", 0)))
     cls = UnrepeatedDistributedSampler if mode == RunningStage.PREDICTING else DeterministicDistributedSampler
     if cls == DeterministicDistributedSampler:
         kwargs["batch_size"] = dataloader.batch_size
@@ -42,7 +42,7 @@ class ProgressBarPatch(pl.callbacks.ProgressBar):
         super().on_train_epoch_start(trainer, pl_module)
         # This manually set the progress bar to the middle according to the total_batch_idx.
         # asssume fix num batches in each epoch.
-        self.main_progress_bar.update(trainer.total_batch_idx % trainer.num_training_batches)
+        self.main_progress_bar.update(trainer.fit_loop.total_batch_idx % trainer.num_training_batches)
 
 
 def patch_progressbar(trainer):
@@ -57,7 +57,7 @@ def patch_progressbar(trainer):
             old_on_train_epoch_start = callback.on_train_epoch_start
             def on_train_epoch_start(self, trainer, pl_module):
                 old_on_train_epoch_start(trainer, pl_module)
-                self.main_progress_bar.update(trainer.total_batch_idx % trainer.num_training_batches)
+                self.main_progress_bar.update(trainer.fit_loop.total_batch_idx % trainer.num_training_batches)
             callback.on_train_epoch_start = types.MethodType(on_train_epoch_start, callback)
 
 
@@ -98,14 +98,16 @@ def patch_on_save_checkpoint_every(trainer, checkpoint_every):
 def patch_checkpoint_connector(trainer):
     # save and load total_batch_idx
     old_restore_training_state = trainer.checkpoint_connector.restore_training_state
-    def restore_training_state(self, checkpoint, load_optimizer_states: bool = True):
-        old_restore_training_state(checkpoint, load_optimizer_states)
-        self.trainer.total_batch_idx = checkpoint.get('total_batch_idx', 0)
+    def restore_training_state(self):
+        old_restore_training_state()
+        if self._loaded_checkpoint:
+            self.trainer.fit_loop.epoch_loop.total_batch_idx = self._loaded_checkpoint.get('total_batch_idx', 0)
     old_dump_checkpoint = trainer.checkpoint_connector.dump_checkpoint
     def dump_checkpoint(self, weights_only: bool = False) -> dict:
         checkpoint = old_dump_checkpoint(weights_only)
-        checkpoint['total_batch_idx'] = self.trainer.total_batch_idx
-        if not self.trainer.total_batch_idx % self.trainer.num_training_batches == 0:
+        checkpoint['total_batch_idx'] = self.trainer.fit_loop.total_batch_idx
+        # note: this won't work when limit_train_batches is set.
+        if not self.trainer.fit_loop.total_batch_idx % self.trainer.num_training_batches == 0:
             # end in the middle of a epoch
             checkpoint['epoch'] -= 1 # so that when resuming, the current_epoch will be the same as when saving.
         return checkpoint
@@ -115,7 +117,7 @@ def patch_checkpoint_connector(trainer):
 
 class SetEpochCallback(pl.callbacks.Callback):
     def on_train_epoch_start(self, trainer, pl_module):
-        trainer.train_dataloader.sampler.set_epoch(trainer.total_batch_idx)
+        trainer.train_dataloader.sampler.set_epoch(trainer.fit_loop.total_batch_idx)
 
 
 def patch_set_epoch(trainer):
@@ -123,11 +125,11 @@ def patch_set_epoch(trainer):
     Instead of set_epoch according to current_epoch, set_epoch with total_batch_idx.
     This is intended to work with my determnistic_distributed_sampler.
     """
-    old_on_train_epoch_start = trainer.train_loop.on_train_epoch_start
-    def on_train_epoch_start(self, epoch):
-        old_on_train_epoch_start(epoch)
-        self.trainer.train_dataloader.sampler.set_epoch(self.trainer.total_batch_idx)
-    trainer.train_loop.on_train_epoch_start = types.MethodType(on_train_epoch_start, trainer.train_loop)
+    old_on_advance_start = trainer.fit_loop.on_advance_start
+    def on_advance_start(self):
+        old_on_advance_start()
+        self.trainer.train_dataloader.sampler.set_epoch(self.trainer.fit_loop.total_batch_idx)
+    trainer.fit_loop.on_advance_start = types.MethodType(on_advance_start, trainer.fit_loop)
 
 
 def patch_data_connector(trainer):
@@ -151,7 +153,7 @@ def patch_data_connector(trainer):
     def get_profiled_train_dataloader(self, train_dataloader):
         # We feed batch_idx because the model may resume of middle-of-epoch checkpoint.
         # the length of train_dataloader has been modified by set_epoch at this point.
-        start_batch_idx = self.trainer.total_batch_idx % self.trainer.num_training_batches
+        start_batch_idx = self.trainer.fit_loop.total_batch_idx % self.trainer.num_training_batches
         old_profiled_dl = old_get_profiled_train_dataloader(train_dataloader)
         def profiled_dl():
             # we discard the old batch_idx, and use the new one.

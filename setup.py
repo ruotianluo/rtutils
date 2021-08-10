@@ -5,7 +5,7 @@ import setuptools
 
 setuptools.setup(
     name="rtutils", # Replace with your own username
-    version="0.2.1",
+    version="0.3",
     author="Ruotian Luo",
     author_email="rluo@ttic.edu",
     entry_points={
