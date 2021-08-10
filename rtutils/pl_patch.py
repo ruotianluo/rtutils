@@ -151,7 +151,7 @@ def patch_data_connector(trainer):
     def get_profiled_train_dataloader(self, train_dataloader):
         # We feed batch_idx because the model may resume of middle-of-epoch checkpoint.
         # the length of train_dataloader has been modified by set_epoch at this point.
-        start_batch_idx = self.trainer.num_training_batches - len(train_dataloader)
+        start_batch_idx = self.trainer.total_batch_idx % self.trainer.num_training_batches
         old_profiled_dl = old_get_profiled_train_dataloader(train_dataloader)
         def profiled_dl():
             # we discard the old batch_idx, and use the new one.
